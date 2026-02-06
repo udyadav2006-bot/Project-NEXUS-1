@@ -1,23 +1,23 @@
 from flask import Flask, request, jsonify
-from transformers import pipeline
-import os
+import os, requests
 
 app = Flask(__name__)
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+HF_TOKEN = os.getenv("HF_TOKEN")
 
-@app.route("/health", methods=["GET"])
+@app.route("/health")
 def health():
-    return jsonify({"status": "ok"})
+    return {"status": "ok"}
 
 @app.route("/summarize", methods=["POST"])
 def summarize():
-    data = request.get_json()
-    text = data.get("text", "")
-    if len(text.strip()) < 20:
-        return jsonify({"summary": "Text too short to summarize"}), 400
+    text = request.json.get("text", "")
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    r = requests.post(
+        "https://api-inference.huggingface.co/models/sshleifer/distilbart-cnn-12-6",
+        headers=headers,
+        json={"inputs": text}
+    )
+    data = r.json()
+    return jsonify({"summary": data[0]["summary_text"]})
 
-    result = summarizer(text, max_length=40, min_length=10, do_sample=False)
-    return jsonify({"summary": result[0]["summary_text"]})
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+app.run(host="0.0.0.0", port=int(os.getenv("PORT", 3000)))
